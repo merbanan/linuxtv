@@ -164,6 +164,7 @@ static int rtl28xxu_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msg[],
 	struct dvb_usb_device *d = i2c_get_adapdata(adap);
 	struct rtl28xxu_priv *priv = d->priv;
 	struct rtl28xxu_req req;
+	int retry_cnt;
 
 	/*
 	 * It is not known which are real I2C bus xfer limits, but testing
@@ -245,33 +246,21 @@ static int rtl28xxu_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msg[],
 				req.data = &msg[0].buf[1];
 				ret = rtl28xxu_ctrl_msg(d, &req);
 			}
-		} else if (msg[0].len < 23) {
+		} else if (/*msg[0].len < 23*/0) {
 			/* method 2 - old I2C */
 			req.value = (msg[0].buf[0] << 8) | (msg[0].addr << 1);
 			req.index = CMD_I2C_WR;
 			req.size = msg[0].len-1;
 			req.data = &msg[0].buf[1];
 			ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
+			retry_cnt = 0;
+			while (ret) {
+				//msleep(100);
 				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req); 
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
+				retry_cnt++;
+				if (retry_cnt > 10)
+					break;
+			}
 		} else {
 			/* method 3 - new I2C */
 			req.value = (msg[0].addr << 1);
@@ -279,26 +268,14 @@ static int rtl28xxu_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msg[],
 			req.size = msg[0].len;
 			req.data = msg[0].buf;
 			ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
+			retry_cnt = 0;
+			while (ret) {
+				//msleep(100);
 				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req); 
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
-			if (ret)
-				ret = rtl28xxu_ctrl_msg(d, &req);
+				retry_cnt++;
+				if (retry_cnt > 10)
+					break;
+			}
 		}
 	} else {
 		ret = -EINVAL;
@@ -684,7 +661,7 @@ static const struct rtl2832_config rtl28xxu_rtl2832_r820t_config = {
 };
 
 static const struct mn88472_c_config rtl28xxu_mn88472_config = {
-	.i2c_wr_max = 22,
+	.i2c_wr_max = 2,
 };
 
 static int rtl2832u_fc0012_tuner_callback(struct dvb_usb_device *d,
