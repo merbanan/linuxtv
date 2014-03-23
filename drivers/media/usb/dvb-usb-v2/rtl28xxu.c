@@ -1422,6 +1422,7 @@ err:
 static int rtl2832u_get_rc_config(struct dvb_usb_device *d,
 		struct dvb_usb_rc *rc)
 {
+    return rtl28xx_wr_reg(d, IR_RX_IE, 0x00);
 	/* disable IR interrupts in order to avoid SDR sample loss */
 	if (rtl28xxu_disable_rc)
 		return rtl28xx_wr_reg(d, IR_RX_IE, 0x00);
