@@ -18,6 +18,8 @@
 
 static struct dvb_frontend_ops mn88472_ops_c;
 
+static int fw_loaded = 0;
+
 /* write multiple registers */
 static int mn88472_wregs(struct mn88472_state *s, u16 reg, const u8 *val, int len)
 {
@@ -254,6 +256,9 @@ static int mn88472_init_c(struct dvb_frontend *fe)
 	/* set cold state by default */
 	s->warm = false;
 
+	if (fw_loaded)
+		return 0;
+	
 	/* power on */
 	ret = mn88472_wreg(s, 0x1c05, 0x00);
 	if (ret)
@@ -298,11 +303,16 @@ static int mn88472_init_c(struct dvb_frontend *fe)
 	if (ret)
 		goto err;
 
+	
+	dev_info(&s->i2c->dev, "%s: firmware download complete\n",
+			KBUILD_MODNAME);
+
 	release_firmware(fw);
 	fw = NULL;
 
 	/* warm state */
 	s->warm = true;
+	fw_loaded = 1;
 
 	return 0;
 err:
@@ -382,6 +392,13 @@ static struct dvb_frontend_ops mn88472_ops_c = {
 	.delsys = {SYS_DVBC_ANNEX_A},
 	.info = {
 		.name = "Panasonic MN88472",
+		.frequency_min = 47000000,
+		.frequency_max = 865000000,
+		 /* For DVB-C */
+		.symbol_rate_min = 870000,
+		.symbol_rate_max = 11700000,
+		/* For DVB-T */
+		.frequency_stepsize = 166667,
 		.caps =	FE_CAN_FEC_1_2			|
 			FE_CAN_FEC_2_3			|
 			FE_CAN_FEC_3_4			|
