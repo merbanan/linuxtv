@@ -924,41 +924,36 @@ static struct dvb_frontend_ops rtl2832_ops;
 
 int rtl2832_pid_filter_ctrl(struct dvb_frontend *fe, int onoff, int slave_demod, int slave_active )
 {
-    int ret = 0;
+    int ret;
     u8 val, base_adr;
     struct rtl2832_priv *priv = fe->demodulator_priv;
 
-	dev_dbg(&priv->i2c->dev, "%s: onoff=%d\n", __func__, onoff);
-	
     if (slave_demod) {
         if (slave_active) {
             val = onoff ? 0x60 : 0x00;
-//            ret = rtl2832_wr_reg(priv, 0x61, 0, val);
+            ret = rtl2832_wr(priv, 0x61, &val , 1);
             val = onoff ? 0xa8 : 0x00;
-//            ret = rtl2832_wr_reg(priv, 0x21, 0, val);
+            ret = rtl2832_wr(priv, 0x21, &val , 1);
         } else {
             val = onoff ? 0x80 : 0x00;
-//            ret = rtl2832_wr_reg(priv, 0x61, 0, val);
+            ret = rtl2832_wr(priv, 0x61, &val , 1);
         }
     } else {
         // FIXME this is probably wrong, also no shadow reg
         val = onoff ? 0x80 : 0x00;
-//        ret = rtl2832_wr_reg(priv, 0x61, 0, val);
+        ret = rtl2832_wr(priv, 0x61, &val , 1);
     }
-	dev_dbg(&priv->i2c->dev, "%s: done=%d\n", __func__, ret);
+
     return ret;
 }
 EXPORT_SYMBOL(rtl2832_pid_filter_ctrl);
 
 int rtl2832_pid_filter(struct dvb_frontend *fe,
         int index, u16 pid, int onoff, int slave) {
-    int ret = 0;
+    int ret;
     struct rtl2832_priv *priv = fe->demodulator_priv;
     u8 reg_adr, toggle_adr, toggle_pos, shadow_idx, val, base_adr;
 
-	dev_info(&priv->i2c->dev, "%s: index=%d pid=%04x onoff=%d\n",
-			__func__, index, pid, onoff);
-	
     /* Insert the pid filter */
     if (slave)
         base_adr = 0x21;
@@ -968,9 +963,9 @@ int rtl2832_pid_filter(struct dvb_frontend *fe,
     reg_adr = base_adr + 5 + index*2;
     //FIXME write 16 bits in one go
     val = (pid>>8)&0xFF;
-    //ret = rtl2832_wr_reg(priv, reg_adr, 0, val);
+    ret = rtl2832_wr(priv, reg_adr, &val, 1);
     val = pid&0xFF;
-    //ret = rtl2832_wr_reg(priv, reg_adr+1, 0, val);
+    ret = rtl2832_wr(priv, reg_adr+1, &val , 1);
 
     /* Toggle the pid filter */
     shadow_idx = index/8;
@@ -981,9 +976,7 @@ int rtl2832_pid_filter(struct dvb_frontend *fe,
     } else {
         priv->pid_shadow_regs[shadow_idx] &= ~(1<<toggle_pos);
     }
-    //ret = rtl2832_wr_reg(priv, toggle_adr, 0, priv->pid_shadow_regs[shadow_idx]);
-	dev_dbg(&priv->i2c->dev, "%s: done=%d\n", __func__, ret);
-
+    ret = rtl2832_wr(priv, toggle_adr, &(priv->pid_shadow_regs[shadow_idx]), 1);
     return ret;
 }
 EXPORT_SYMBOL(rtl2832_pid_filter);
