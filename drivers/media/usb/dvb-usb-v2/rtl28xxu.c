@@ -297,6 +297,129 @@ static struct i2c_algorithm rtl28xxu_i2c_algo = {
 	.functionality = rtl28xxu_i2c_func,
 };
 
+static int rrtl28xxu_pid_filter_ctrl(struct dvb_usb_adapter *adap, int onoff)
+{
+	int ret;
+	u8 buf[2];
+	struct rtl28xxu_req req_gate_open = {0x0120, 0x0011, 0x0001, "\x18"};
+	struct rtl28xxu_req req_gate_close = {0x0120, 0x0011, 0x0001, "\x10"};
+	struct rtl28xxu_req req_pfe = {0x2120, CMD_DEMOD_WR, 0x0001, "\xa8"};
+	struct rtl28xxu_req req_pfe_enable = {0x2220, CMD_DEMOD_WR, 0x0004, "\x00\x00\x00\x00"};
+
+	struct rtl28xxu_req req_pfd = {0x2120, CMD_DEMOD_WR, 0x0001, "\xe8"};
+	struct rtl28xxu_req req_pfd_enable = {0x2220, CMD_DEMOD_WR, 0x0004, "\x01\x00\x00\x00"};
+	struct rtl28xxu_req req_pfd_pid = {0x2620, CMD_DEMOD_WR, 0x0002, "\xff\x1f"};
+
+	struct dvb_usb_device *d = adap_to_d(adap);
+	struct rtl28xxu_priv *priv = d_to_priv(d);
+//	int gate = priv->demod_i2c_adapter->i2c_gate_state;
+	/* close demod I2C gate */
+	dev_dbg(&d->udev->dev, "%s: onoff=%d\n", __func__, onoff);
+	
+	rtl28xx_wr_reg()
+	
+/*
+	ret = rtl28xxu_ctrl_msg(d, &req_gate_close);
+	if (ret)
+		goto err;
+
+	// enable/disable the pid filters 
+	if (onoff) {
+		ret = rtl28xxu_ctrl_msg(d, &req_pfe);
+	if (ret)
+		goto err;
+		ret = rtl28xxu_ctrl_msg(d, &req_pfe_enable);
+	if (ret)
+		goto err;
+	} else {
+		ret = rtl28xxu_ctrl_msg(d, &req_pfd);
+	if (ret)
+		goto err;
+		ret = rtl28xxu_ctrl_msg(d, &req_pfd_enable);
+	if (ret)
+		goto err;
+		ret = rtl28xxu_ctrl_msg(d, &req_pfd_pid);
+	if (ret)
+		goto err;
+	}
+// 	if (gate)
+ 		ret = rtl28xxu_ctrl_msg(d, &req_gate_open);
+// 	else
+// 		ret = rtl28xxu_ctrl_msg(d, &req_gate_close);
+ 	if (ret)
+ 		goto err;
+*/
+	return 0;
+err:
+	dev_dbg(&d->udev->dev, "%s: failed=%d\n", __func__, ret);
+	return ret;
+}
+EXPORT_SYMBOL(rtl28xxu_pid_filter_ctrl);
+
+static int rrtl28xxu_pid_filter(struct dvb_usb_adapter *adap,
+		int index, u16 pid, int onoff) {
+	int ret;
+	struct rtl28xxu_req req_gate_open = {0x0120, 0x0011, 0x0001, "\x18"};
+	struct rtl28xxu_req req_gate_close = {0x0120, 0x0011, 0x0001, "\x10"};
+	struct rtl28xxu_req req_tmp;
+	struct dvb_usb_device *d = adap_to_d(adap);
+	struct rtl28xxu_priv *priv = d_to_priv(d);
+//	int gate = priv->demod_i2c_adapter->i2c_gate_state;
+	u8 reg_adr, toggle_adr, toggle_pos, shadow_idx;
+	u8 tmp_data[2];
+	
+	
+	dev_dbg(&d->udev->dev, "%s: index=%d, pid=%x, onoff=%d\n", __func__, index, pid, onoff);
+
+	/* close demod I2C gate */
+
+	ret = rtl28xxu_ctrl_msg(d, &req_gate_close);
+	if (ret)
+		goto err;
+
+	/* Insert the pid filter */
+	tmp_data[0] = (pid>>8)&0xFF;
+	tmp_data[1] = pid&0xFF;
+	req_tmp.size = 2;
+	req_tmp.data = tmp_data;
+	req_tmp.index = CMD_DEMOD_WR;
+	req_tmp.value = 0x26 + index*2;
+	ret = rtl28xxu_ctrl_msg(d, &req_tmp);
+	if (ret)
+		goto err;
+
+	/* Toggle the pid filter */
+	shadow_idx = index/8;
+	toggle_pos = index%8;
+	if (onoff) {
+		priv->pid_shadow_regs[shadow_idx] |= 1<<toggle_pos;
+	} else {
+		priv->pid_shadow_regs[shadow_idx] &= ~(1<<toggle_pos);
+	}
+	tmp_data[0] = priv->pid_shadow_regs[shadow_idx];
+	req_tmp.size = 1;
+	req_tmp.data = tmp_data;
+	req_tmp.index = CMD_DEMOD_WR;
+	req_tmp.value = 0x62 + index/8;
+	ret = rtl28xxu_ctrl_msg(d, &req_tmp);
+	if (ret)
+		goto err;
+
+//	if (gate)
+		ret = rtl28xxu_ctrl_msg(d, &req_gate_open);
+//	else
+//		ret = rtl28xxu_ctrl_msg(d, &req_gate_close);
+	if (ret)
+		goto err;
+
+
+	return 0;
+err:
+	dev_dbg(&d->udev->dev, "%s: failed=%d\n", __func__, ret);
+	return ret;
+}
+EXPORT_SYMBOL(rtl28xxu_pid_filter);
+
 static int rtl2831u_read_config(struct dvb_usb_device *d)
 {
 	struct rtl28xxu_priv *priv = d_to_priv(d);
@@ -387,6 +510,9 @@ static int rtl2832u_read_config(struct dvb_usb_device *d)
 	struct rtl28xxu_req req_gate_open = {0x0120, 0x0011, 0x0001, "\x18"};
 	/* close RTL2832U/RTL2832 I2C gate */
 	struct rtl28xxu_req req_gate_close = {0x0120, 0x0011, 0x0001, "\x10"};
+	struct rtl28xxu_req req_pid_filter_enable = {0x2120, CMD_DEMOD_WR, 0x0001, "\xe8"};
+	struct rtl28xxu_req req_pfd_enable = {0x2220, CMD_DEMOD_WR, 0x0004, "\x01\x00\x00\x00"};
+	struct rtl28xxu_req req_pfd_pid = {0x2620, CMD_DEMOD_WR, 0x0002, "\xff\x1f"};
 	/* tuner probes */
 	struct rtl28xxu_req req_fc0012 = {0x00c6, CMD_I2C_RD, 1, buf};
 	struct rtl28xxu_req req_fc0013 = {0x00c6, CMD_I2C_RD, 1, buf};
@@ -412,7 +538,19 @@ static int rtl2832u_read_config(struct dvb_usb_device *d)
 	ret = rtl28xx_wr_reg_mask(d, SYS_GPIO_OUT_EN, 0x48, 0x48);
 	if (ret)
 		goto err;
+/*
+	ret = rtl28xxu_ctrl_msg(d, &req_pid_filter_enable);
+	if (ret)
+		goto err;
 
+	ret = rtl28xxu_ctrl_msg(d, &req_pfd_enable);
+	if (ret)
+		goto err;
+
+	ret = rtl28xxu_ctrl_msg(d, &req_pfd_pid);
+	if (ret)
+		goto err;
+*/
 	/*
 	 * Probe used tuner. We need to know used tuner before demod attach
 	 * since there is some demod params needed to set according to tuner.
@@ -1500,6 +1638,12 @@ static const struct dvb_usb_device_properties rtl2832u_props = {
 	.adapter = {
 		{
 			.stream = DVB_USB_STREAM_BULK(0x81, 6, 8 * 512),
+/*			.caps = DVB_USB_ADAP_HAS_PID_FILTER|
+				DVB_USB_ADAP_PID_FILTER_CAN_BE_TURNED_OFF,
+			.pid_filter_count = 32,
+			.pid_filter = rtl28xxu_pid_filter,
+			.pid_filter_ctrl  = rtl28xxu_pid_filter_ctrl,
+*/
 		},
 	},
 };
